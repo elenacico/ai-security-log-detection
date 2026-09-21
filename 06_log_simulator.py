@@ -5,7 +5,7 @@ import os
 
 # source dataset to pull realistic rows from
 SOURCE_CSV = "data/cybersecurity_network_logs.csv"
-STREAM_OUTPUT = "live_stream.csv"
+STREAM_OUTPUT = "data/live_stream.csv"
 
 def init_stream():
     """reads source dataset and prepares an empty live stream file with headers."""

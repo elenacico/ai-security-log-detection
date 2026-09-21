@@ -9,6 +9,7 @@ from streamlit_autorefresh import st_autorefresh
 from ai_explainer import generate_incident_report
 from csv_normalizer import normalize_csv#
 from scipy.stats import percentileofscore
+from brute_force_features import FEATURE_COLS, build_actor_features
 
 
 def get_scoring_model(pretrained_path, df, candidate_features, force_retrain):
@@ -58,9 +59,9 @@ normalize_warnings = []
 # data ingestion & normalization
 if live_mode:
     st_autorefresh(interval=2000, key="siem_live_stream_refresh")
-    if os.path.exists("live_stream.csv"):
+    if os.path.exists("data/live_stream.csv"):
         try:
-            raw_data = pd.read_csv("live_stream.csv")
+            raw_data = pd.read_csv("data/live_stream.csv")
             df_raw, normalize_warnings = normalize_csv(raw_data)  # normalize first
         except Exception:
             pass
@@ -196,56 +197,108 @@ if df_raw is not None and not df_raw.empty:
         try:
             df = df_raw.copy()
 
-            # compute rolling ssh features from raw columns first, before
-            # any placeholder-fill runs, so real signal isn't overwritten
-            # with zeros
-            if "failed_count_5m" not in df.columns and {"timestamp", "source_ip", "status"} <= set(df.columns):
-                df["timestamp"] = pd.to_datetime(df["timestamp"])
-                df = df.sort_values("timestamp").reset_index(drop=True)
-                df["time_delta_sec"] = df.groupby("source_ip")["timestamp"].diff().dt.total_seconds().fillna(0)
-                df = df.set_index("timestamp")
-                df["failed_count_5m"] = df.groupby("source_ip")["status"].transform(
-                    lambda x: (x.astype(str).str.lower() != "success").astype(int).rolling("5min").sum()
-                ).fillna(0)
-                df["total_count_5m"] = df.groupby("source_ip")["status"].transform(
-                    lambda x: x.rolling("5min").count()
-                ).fillna(0)
-                df["failure_ratio_5m"] = np.round(
-                    df["failed_count_5m"] / (df["total_count_5m"] + 1e-9), 4
-                )
-                df = df.reset_index()
+            required_raw_cols = {"timestamp", "source_ip", "username", "status"}
+            if required_raw_cols <= set(df.columns):
+                # brute force is a behavior of an actor over time, not a
+                # property of one row - aggregate into rolling per-actor
+                # features and score those with a classifier trained
+                # specifically to recognize brute-force patterns, instead of
+                # a generic per-row anomaly score
+                df = build_actor_features(df)
 
-            candidate_features = ["time_delta_sec", "failed_count_5m", "total_count_5m", "failure_ratio_5m"]
-
-            model, expected_features, retrained = get_scoring_model(
-                "isolation_forest_ssh.pkl", df, candidate_features, bool(normalize_warnings)
-            )
-
-            # fill any still-missing expected features with 0
-            for col in expected_features:
-                if col not in df.columns:
-                    df[col] = 0
-
-            if retrained:
-                st.info(
-                    "The pretrained SSH model's features didn't carry real "
-                    "signal for this dataset, so a fresh Isolation Forest was fit "
-                    f"on this dataset's own features: **{', '.join(expected_features)}**"
+                clf = joblib.load("brute_force_classifier_ssh.pkl")
+                df["brute_force_score"] = np.round(
+                    clf.predict_proba(df[FEATURE_COLS])[:, 1] * 100, 1
                 )
 
-            raw_scores = model.decision_function(df[expected_features])
-            s_min, s_max = raw_scores.min(), raw_scores.max()
-            df["risk_score"] = np.round((1 - (raw_scores - s_min) / (s_max - s_min + 1e-9)) * 100, 1)
+                # one row per source_ip: its peak observed suspicion in this batch
+                leaderboard = (
+                    df.groupby("source_ip", as_index=False)
+                    .agg(
+                        brute_force_score=("brute_force_score", "max"),
+                        attempts=("attempts_5m", "max"),
+                        failed=("failed_5m", "max"),
+                        failure_ratio=("failure_ratio_5m", "max"),
+                        distinct_usernames=("distinct_usernames_5m", "max"),
+                        last_seen=("timestamp", "max"),
+                    )
+                    .sort_values("brute_force_score", ascending=False)
+                    .reset_index(drop=True)
+                )
 
-            col1, col2 = st.columns(2)
-            col1.metric("Total Streamed Events", f"{len(df):,}")
-            col2.metric("Flagged SSH Anomalies", f"{(df['risk_score'] >= 80).sum():,}")
+                col1, col2 = st.columns(2)
+                col1.metric("Total Streamed Events", f"{len(df):,}")
+                col2.metric(
+                    "Flagged Brute-Force Actors",
+                    f"{(leaderboard['brute_force_score'] >= 80).sum():,}",
+                )
 
-            fig = px.scatter(
-                df, x=df.index, y="failed_count_5m", color="risk_score",
-                color_continuous_scale="Reds", title="SSH Failed Logins (5m Window) vs Event Index"
-            )
-            st.plotly_chart(fig, use_container_width=True)
+                st.subheader("Suspicious Source IPs")
+                st.dataframe(leaderboard, use_container_width=True, hide_index=True)
+
+                fig = px.scatter(
+                    df, x="timestamp", y="failed_5m", color="brute_force_score",
+                    color_continuous_scale="Reds", title="SSH Failed Logins (5m Window) vs Time",
+                    hover_data=["source_ip", "username"],
+                )
+                st.plotly_chart(fig, use_container_width=True)
+
+                st.subheader("Gemini AI Threat Remediation")
+                high_risk = leaderboard[leaderboard["brute_force_score"] >= 80]
+                if not high_risk.empty:
+                    selected_ip = st.selectbox("Select Flagged Source IP", high_risk["source_ip"])
+                    actor_row = high_risk[high_risk["source_ip"] == selected_ip].iloc[0]
+                    usernames_targeted = sorted(
+                        df.loc[df["source_ip"] == selected_ip, "username"].unique().tolist()
+                    )
+
+                    if st.button("Generate AI Mitigation Brief"):
+                        payload = {
+                            "source_ip": selected_ip,
+                            "failed_count_5m": int(actor_row["failed"]),
+                            "usernames": usernames_targeted,
+                            "risk_score": float(actor_row["brute_force_score"]),
+                        }
+                        report = generate_incident_report(engine_type, payload)
+                        st.info(f"**Analyst Summary:** {report.get('summary')}")
+                        st.code(report.get("command"), language="bash")
+                else:
+                    st.success("No high-confidence brute-force activity detected in active stream.")
+
+            else:
+                # dataset is missing the raw columns the classifier needs
+                # (timestamp/source_ip/username/status) - fall back to the
+                # generic pretrained isolation forest
+                candidate_features = ["time_delta_sec", "failed_count_5m", "total_count_5m", "failure_ratio_5m"]
+
+                model, expected_features, retrained = get_scoring_model(
+                    "isolation_forest_ssh.pkl", df, candidate_features, bool(normalize_warnings)
+                )
+
+                for col in expected_features:
+                    if col not in df.columns:
+                        df[col] = 0
+
+                if retrained:
+                    st.info(
+                        "The pretrained SSH model's features didn't carry real "
+                        "signal for this dataset, so a fresh Isolation Forest was fit "
+                        f"on this dataset's own features: **{', '.join(expected_features)}**"
+                    )
+
+                raw_scores = model.decision_function(df[expected_features])
+                s_min, s_max = raw_scores.min(), raw_scores.max()
+                df["risk_score"] = np.round((1 - (raw_scores - s_min) / (s_max - s_min + 1e-9)) * 100, 1)
+
+                col1, col2 = st.columns(2)
+                col1.metric("Total Streamed Events", f"{len(df):,}")
+                col2.metric("Flagged SSH Anomalies", f"{(df['risk_score'] >= 80).sum():,}")
+
+                fig = px.scatter(
+                    df, x=df.index, y="failed_count_5m", color="risk_score",
+                    color_continuous_scale="Reds", title="SSH Failed Logins (5m Window) vs Event Index"
+                )
+                st.plotly_chart(fig, use_container_width=True)
 
         except Exception as e:
             st.error(f"Error processing SSH stream: {e}")
