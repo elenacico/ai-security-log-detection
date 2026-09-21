@@ -4,7 +4,7 @@ import pandas as pd
 from csv_normalizer import normalize_csv
 
 # this script is the active training-data pipeline for the network engine
-# (feeds 03_train_model.py -> isolation_forest_network.pkl, still the
+# (feeds 02_train_isolation_forest.py -> isolation_forest_network.pkl, still the
 # dashboard's primary network detector). for ssh, its output only feeds the
 # old isolation_forest_ssh.pkl fallback path - the dashboard's primary ssh
 # detector (the brute-force classifier) builds its own features straight
@@ -98,6 +98,6 @@ if __name__ == "__main__":
     target_file = (
         sys.argv[1]
         if len(sys.argv) > 1
-        else "cybersecurity_network_logs.csv"
+        else "data/cybersecurity_network_logs.csv"
     )
     main(target_file)

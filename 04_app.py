@@ -312,6 +312,6 @@ if df_raw is not None and not df_raw.empty:
 
 else:
     if live_mode:
-        st.warning("Live stream initialized. Waiting for incoming events from `05_log_simulator.py`...")
+        st.warning("Live stream initialized. Waiting for incoming events from `scripts/log_simulator.py`...")
     else:
         st.info("Please upload a CSV file or check 'Enable Live Streaming Mode' in the sidebar.")

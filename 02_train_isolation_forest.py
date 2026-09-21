@@ -131,6 +131,6 @@ def main(file_path):
 
 if __name__ == "__main__":
     input_file = (
-        sys.argv[1] if len(sys.argv) > 1 else "processed_network_logs.csv"
+        sys.argv[1] if len(sys.argv) > 1 else "data/processed_network_logs.csv"
     )
     main(input_file)

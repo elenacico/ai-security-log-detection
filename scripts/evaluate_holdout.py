@@ -6,13 +6,13 @@ import seaborn as sns
 from sklearn.metrics import classification_report, confusion_matrix
 
 # load full dataset and slice out the final 30% as unseen test traffic
-df_full = pd.read_csv('processed_ssh_logs.csv')
+df_full = pd.read_csv('data/processed_ssh_logs.csv')
 split_idx = int(len(df_full) * 0.70)
 
 # save the 30% holdout split as a new file
 df_unseen = df_full.iloc[split_idx:].copy().reset_index(drop=True)
-df_unseen.to_csv('unseen_ssh_logs.csv', index=False)
-print(f"Created 'unseen_ssh_logs.csv' with {len(df_unseen):,} new log entries.")
+df_unseen.to_csv('data/unseen_ssh_logs.csv', index=False)
+print(f"Created 'data/unseen_ssh_logs.csv' with {len(df_unseen):,} new log entries.")
 
 # 2. load serialized model from disk
 model = joblib.load('isolation_forest_ssh.pkl')
@@ -49,7 +49,7 @@ plt.title('Anomaly Detection on Unseen Holdout Data (12,548 Rows)')
 plt.xlabel('Unseen Log Sequence Index')
 plt.ylabel('Failed Logins in 5-Min Window')
 plt.tight_layout()
-plt.savefig('unseen_data_anomalies.png', dpi=300)
+plt.savefig('visuals/unseen_data_anomalies.png', dpi=300)
 plt.close()
 
-print("Plot saved to 'unseen_data_anomalies.png'!")
+print("Plot saved to 'visuals/unseen_data_anomalies.png'!")
