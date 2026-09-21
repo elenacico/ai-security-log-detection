@@ -36,5 +36,7 @@ pip install -r requirements.txt
 streamlit run 04_app.py
 ```
 
-Set `GEMINI_API_KEY` in `.streamlit/secrets.toml` or as an environment variable to
-enable AI-generated incident reports.
+To enable AI-generated incident reports, copy `.streamlit/secrets.toml.example` to
+`.streamlit/secrets.toml` and add your own Gemini API key (or set `GEMINI_API_KEY`
+as an environment variable instead). `secrets.toml` is gitignored, so your key is
+never committed.
