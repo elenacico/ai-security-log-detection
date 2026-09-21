@@ -10,19 +10,21 @@ with Gemini-generated incident reports.
 This project uses publicly available datasets from Kaggle. Credit to the original
 authors:
 
-- **Network telemetry training data** (`data/cybersecurity_network_logs.csv`)
-  [Cybersecurity Network Logs - Anomaly Detection](https://www.kaggle.com/datasets/aatmaca/cybersecurity-network-logs-anomaly-detection)
-  by [aatmaca](https://www.kaggle.com/aatmaca)
+### Training
 
 - **SSH authentication training data** (`data/ssh_logs.csv`)
   [SSH Anomaly Dataset](https://www.kaggle.com/datasets/mdwiraputradananjaya/ssh-anomaly-dataset)
   by [Md Wira Putra Dananjaya](https://www.kaggle.com/mdwiraputradananjaya)
+  (renamed from `ssh_anomaly_dataset.csv`)
 
-Two additional public datasets were used during development to validate the
-models against traffic they weren't trained on (not included in this repo):
+- **Network telemetry training data** (`data/cybersecurity_network_logs.csv`)
+  [Cybersecurity Network Logs - Anomaly Detection](https://www.kaggle.com/datasets/aatmaca/cybersecurity-network-logs-anomaly-detection)
+  by [aatmaca](https://www.kaggle.com/aatmaca)
 
-- [Cybersecurity Intrusion Detection Dataset](https://www.kaggle.com/datasets/dnkumars/cybersecurity-intrusion-detection-dataset)
-  by [Dinesh Naveen Kumar Samudrala](https://www.kaggle.com/dnkumars)
+### Testing
+
+- [Cybersecurity Network Logs - Anomaly Detection](https://www.kaggle.com/datasets/aatmaca/cybersecurity-network-logs-anomaly-detection)
+  by [aatmaca](https://www.kaggle.com/aatmaca)
 - [Real-Time Network Traffic Dataset for IDS](https://www.kaggle.com/datasets/rajashrichaudhari1/real-time-network-traffic-dataset-for-ids)
   by [Rajashri Chaudhari](https://www.kaggle.com/rajashrichaudhari1) - used to stress-test
   generalization to out-of-distribution traffic
