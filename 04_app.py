@@ -1,3 +1,4 @@
+import io
 import os
 import joblib
 import numpy as np
@@ -10,6 +11,41 @@ from ai_explainer import generate_incident_report
 from csv_normalizer import normalize_csv#
 from scipy.stats import rankdata
 from brute_force_features import FEATURE_COLS, build_actor_features
+
+
+@st.cache_data(show_spinner="Parsing and normalizing dataset...")
+def load_and_normalize(file_bytes):
+    """Cached on the raw file bytes, so re-running the script on an
+    unrelated widget interaction (Streamlit reruns top-to-bottom on every
+    interaction) doesn't re-parse and re-normalize a large CSV from
+    scratch every time - only when the uploaded file actually changes."""
+    raw_data = pd.read_csv(io.BytesIO(file_bytes))
+    return normalize_csv(raw_data)
+
+
+def sample_for_plot(df, score_col, max_points=5000):
+    """Caps how many points actually get sent to the browser for a scatter
+    plot. A 200k-point Plotly scatter ships a 10MB+ payload on every single
+    rerun (Streamlit reruns the whole script on any widget interaction),
+    which is what makes the UI feel like it's hanging.
+
+    score_col is a percentile rank, so the flagged set (>=80) is always
+    about 20% of the batch by construction, regardless of dataset size -
+    on a 200k-row dataset that's still ~40k points, which alone blows the
+    budget. So the flagged set itself is capped to its most severe points
+    when it's larger than the budget, and any leftover budget is filled
+    with a random sample of the rest for visual context."""
+    if len(df) <= max_points:
+        return df, False
+    flagged = df[df[score_col] >= 80]
+    if len(flagged) > max_points:
+        flagged = flagged.sort_values(score_col, ascending=False).head(max_points)
+    remaining_budget = max(max_points - len(flagged), 0)
+    background = df.drop(flagged.index)
+    sampled_background = background.sample(
+        n=min(remaining_budget, len(background)), random_state=42
+    )
+    return pd.concat([flagged, sampled_background]).sort_index(), True
 
 
 def get_scoring_model(pretrained_path, df, candidate_features, force_retrain):
@@ -70,8 +106,7 @@ else:
         "Upload Log Dataset (CSV)", type=["csv"]
     )
     if uploaded_file is not None:
-        raw_data = pd.read_csv(uploaded_file)
-        df_raw, normalize_warnings = normalize_csv(raw_data)  # normalize first
+        df_raw, normalize_warnings = load_and_normalize(uploaded_file.getvalue())
 
 # schema auto-detection
 if df_raw is not None and not df_raw.empty:
@@ -160,9 +195,17 @@ if df_raw is not None and not df_raw.empty:
             col1.metric("Total Streamed Sessions", f"{len(df):,}")
             col2.metric("Flagged Network Anomalies", f"{(df['risk_score'] >= 80).sum():,}")
 
+            plot_df, was_sampled = sample_for_plot(df, "risk_score")
+            if was_sampled:
+                st.caption(
+                    f"Showing all {len(plot_df[plot_df['risk_score'] >= 80]):,} flagged events "
+                    f"plus a random sample of the remaining traffic "
+                    f"({len(plot_df):,} of {len(df):,} points plotted) for rendering performance."
+                )
+
             fig = px.scatter(
-                df,
-                x=df.index,
+                plot_df,
+                x=plot_df.index,
                 y="bytes_per_ms",
                 color="risk_score",
                 color_continuous_scale="Reds",
@@ -243,8 +286,16 @@ if df_raw is not None and not df_raw.empty:
                 st.subheader("Suspicious Source IPs")
                 st.dataframe(leaderboard, use_container_width=True, hide_index=True)
 
+                plot_df, was_sampled = sample_for_plot(df, "brute_force_score")
+                if was_sampled:
+                    st.caption(
+                        f"Showing all {len(plot_df[plot_df['brute_force_score'] >= 80]):,} flagged events "
+                        f"plus a random sample of the remaining traffic "
+                        f"({len(plot_df):,} of {len(df):,} points plotted) for rendering performance."
+                    )
+
                 fig = px.scatter(
-                    df, x="timestamp", y="failed_5m", color="brute_force_score",
+                    plot_df, x="timestamp", y="failed_5m", color="brute_force_score",
                     color_continuous_scale="Reds", title="SSH Failed Logins (5m Window) vs Time",
                     hover_data=["source_ip", "username"],
                 )
@@ -301,8 +352,16 @@ if df_raw is not None and not df_raw.empty:
                 col1.metric("Total Streamed Events", f"{len(df):,}")
                 col2.metric("Flagged SSH Anomalies", f"{(df['risk_score'] >= 80).sum():,}")
 
+                plot_df, was_sampled = sample_for_plot(df, "risk_score")
+                if was_sampled:
+                    st.caption(
+                        f"Showing all {len(plot_df[plot_df['risk_score'] >= 80]):,} flagged events "
+                        f"plus a random sample of the remaining traffic "
+                        f"({len(plot_df):,} of {len(df):,} points plotted) for rendering performance."
+                    )
+
                 fig = px.scatter(
-                    df, x=df.index, y="failed_count_5m", color="risk_score",
+                    plot_df, x=plot_df.index, y="failed_count_5m", color="risk_score",
                     color_continuous_scale="Reds", title="SSH Failed Logins (5m Window) vs Event Index"
                 )
                 st.plotly_chart(fig, use_container_width=True)

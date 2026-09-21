@@ -4,7 +4,6 @@ import numpy as np
 import pandas as pd
 from sklearn.ensemble import IsolationForest, RandomForestClassifier
 from sklearn.metrics import classification_report, confusion_matrix
-
 from brute_force_features import BRUTE_FORCE_LABELS, FEATURE_COLS, build_actor_features
 
 
