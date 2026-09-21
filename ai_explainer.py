@@ -12,7 +12,7 @@ def generate_incident_report(engine_type: str, telemetry: dict) -> dict:
             "command": "# Please set GEMINI_API_KEY in your environment",
         }
 
-    # Initialize the official Gemini client
+    # initialize the official gemini client
     client = genai.Client(api_key=api_key)
 
     if engine_type == "Host SSH Engine":

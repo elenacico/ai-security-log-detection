@@ -7,12 +7,12 @@ import seaborn as sns
 from sklearn.ensemble import IsolationForest
 from sklearn.metrics import classification_report, confusion_matrix
 
-# Ensure visuals folder exists
+# ensure visuals folder exists
 os.makedirs("visuals", exist_ok=True)
 
 
 def train_ssh_engine(df):
-    """Trains, serializes, and evaluates the SSH Auth Isolation Forest model."""
+    """trains, serializes, and evaluates the ssh auth isolation forest model."""
     feature_cols = [
         "time_delta_sec",
         "failed_count_5m",
@@ -26,12 +26,12 @@ def train_ssh_engine(df):
     )
     model.fit(train_normal)
 
-    # Serialize model to disk
+    # serialize model to disk
     model_filename = "isolation_forest_ssh.pkl"
     joblib.dump(model, model_filename)
-    print(f"✓ Model successfully serialized -> '{model_filename}'")
+    print(f"model successfully serialized -> '{model_filename}'")
 
-    # Predict & Compare
+    # predict & compare
     df["model_raw_score"] = model.predict(df[feature_cols])
     df["predicted_anomaly"] = df["model_raw_score"].map({-1: 1, 1: 0})
     df["true_anomaly"] = (df["label"] != "normal").astype(int)
@@ -40,8 +40,8 @@ def train_ssh_engine(df):
 
 
 def train_network_engine(df):
-    """Trains, serializes, and evaluates the Network Telemetry Isolation Forest model."""
-    # Dynamically select numerical and encoded protocol features
+    """trains, serializes, and evaluates the network telemetry isolation forest model."""
+    # dynamically select numerical and encoded protocol features
     base_features = [
         "Packet_Size_Bytes",
         "Connection_Duration_ms",
@@ -61,12 +61,12 @@ def train_network_engine(df):
     )
     model.fit(train_normal)
 
-    # Serialize model to disk
+    # serialize model to disk
     model_filename = "isolation_forest_network.pkl"
     joblib.dump(model, model_filename)
-    print(f"✓ Model successfully serialized -> '{model_filename}'")
+    print(f"model successfully serialized -> '{model_filename}'")
 
-    # Predict & Compare
+    # predict & compare
     df["model_raw_score"] = model.predict(df[feature_cols])
     df["predicted_anomaly"] = df["model_raw_score"].map({-1: 1, 1: 0})
     df["true_anomaly"] = df["Is_Malicious"].astype(int)
@@ -77,7 +77,7 @@ def train_network_engine(df):
 def main(file_path):
     df = pd.read_csv(file_path)
 
-    # Schema Detection & Training Routing
+    # schema detection & training routing
     if "Is_Malicious" in df.columns:
         print(f"=== Training Network Telemetry Engine ({file_path}) ===")
         df, features, y_plot_col, plot_path = train_network_engine(df)
@@ -93,7 +93,7 @@ def main(file_path):
     else:
         raise ValueError(f"Unrecognized dataset schema in '{file_path}'.")
 
-    # Metrics Evaluation
+    # metrics evaluation
     print("\n=== Confusion Matrix ===")
     print(confusion_matrix(df["true_anomaly"], df["predicted_anomaly"]))
 
@@ -106,7 +106,7 @@ def main(file_path):
         )
     )
 
-    # Save Scatter Plot Visual
+    # save scatter plot visual
     plt.figure(figsize=(12, 6))
     sns.scatterplot(
         x=range(len(df)),
@@ -126,7 +126,7 @@ def main(file_path):
     plt.tight_layout()
     plt.savefig(plot_path, dpi=300, bbox_inches="tight")
     plt.close()
-    print(f"✓ Visual plot saved -> '{plot_path}'")
+    print(f"visual plot saved -> '{plot_path}'")
 
 
 if __name__ == "__main__":

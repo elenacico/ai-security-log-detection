@@ -9,38 +9,38 @@ from sklearn.metrics import classification_report, confusion_matrix
 df_full = pd.read_csv('processed_ssh_logs.csv')
 split_idx = int(len(df_full) * 0.70)
 
-# Save the 30% holdout split as a new file
+# save the 30% holdout split as a new file
 df_unseen = df_full.iloc[split_idx:].copy().reset_index(drop=True)
 df_unseen.to_csv('unseen_ssh_logs.csv', index=False)
 print(f"Created 'unseen_ssh_logs.csv' with {len(df_unseen):,} new log entries.")
 
-# 2. Load serialized model from disk
+# 2. load serialized model from disk
 model = joblib.load('isolation_forest_ssh.pkl')
 
-# 3. Run predictions on unseen data
+# 3. run predictions on unseen data
 feature_cols = ['time_delta_sec', 'failed_count_5m', 'total_count_5m', 'failure_ratio_5m']
 raw_preds = model.predict(df_unseen[feature_cols])
 df_unseen['predicted_anomaly'] = np.where(raw_preds == -1, 1, 0)
 df_unseen['true_anomaly'] = (df_unseen['label'] != 'normal').astype(int)
 
-# 4. Evaluate metrics on unseen traffic
+# 4. evaluate metrics on unseen traffic
 print("\n=== Unseen Test Data Confusion Matrix ===")
 print(confusion_matrix(df_unseen['true_anomaly'], df_unseen['predicted_anomaly']))
 
 print("\n=== Unseen Test Data Classification Report ===")
 print(classification_report(
-    df_unseen['true_anomaly'],
-    df_unseen['predicted_anomaly'],
+    df_unseen['true_anomaly'], 
+    df_unseen['predicted_anomaly'], 
     target_names=['Normal (0)', 'Anomaly (1)']
 ))
 
-# 5. Save plot for unseen data
+# 5. save plot for unseen data
 plt.figure(figsize=(10, 5))
 sns.scatterplot(
-    x=range(len(df_unseen)),
-    y='failed_count_5m',
-    hue='predicted_anomaly',
-    data=df_unseen,
+    x=range(len(df_unseen)), 
+    y='failed_count_5m', 
+    hue='predicted_anomaly', 
+    data=df_unseen, 
     palette={0: 'blue', 1: 'red'},
     alpha=0.6,
     s=25

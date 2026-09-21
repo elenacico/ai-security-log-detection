@@ -5,7 +5,7 @@ from csv_normalizer import normalize_csv
 
 
 def preprocess_ssh(df):
-    """Processes host-level SSH authentication logs using rolling time windows."""
+    """processes host-level ssh authentication logs using rolling time windows."""
     df["timestamp"] = pd.to_datetime(df["timestamp"])
     df = df.sort_values("timestamp").reset_index(drop=True)
 
@@ -14,11 +14,17 @@ def preprocess_ssh(df):
         df.groupby("source_ip")["timestamp"].diff().dt.total_seconds().fillna(0)
     )
 
+    # any status other than a successful login counts as a failed/suspicious
+    # attempt (auth_fail, connection_refused, timed out, etc. - the literal
+    # string "failed" never appears in real log data, so matching on it
+    # left this column constant at 0 for every dataset)
+    df["is_failed"] = (df["status"].astype(str).str.lower() != "success").astype(int)
+
     # 5-minute rolling window aggregation
     df = df.set_index("timestamp")
     df["failed_count_5m"] = (
-        df.groupby("source_ip")["status"]
-        .transform(lambda x: (x == "failed").rolling("5min").sum())
+        df.groupby("source_ip")["is_failed"]
+        .transform(lambda x: x.rolling("5min").sum())
         .fillna(0)
     )
     df["total_count_5m"] = (
@@ -34,13 +40,13 @@ def preprocess_ssh(df):
     output_path = "data/processed_ssh_logs.csv"
     df.to_csv(output_path, index=False)
     print(
-        f"✓ Successfully processed SSH Auth logs ({len(df):,} rows) -> '{output_path}'"
+        f"successfully processed ssh auth logs ({len(df):,} rows) -> '{output_path}'"
     )
 
 
 def preprocess_network(df):
-    """Processes session-level network telemetry logs."""
-    # encode protocol (TCP, UDP, ICMP)
+    """processes session-level network telemetry logs."""
+    # encode protocol (tcp, udp, icmp)
     df = pd.get_dummies(df, columns=["Protocol"], prefix="proto", dtype=int)
 
     # connection-level threat metrics
@@ -57,7 +63,7 @@ def preprocess_network(df):
     output_path = "data/processed_network_logs.csv"
     df.to_csv(output_path, index=False)
     print(
-        f"✓ Successfully processed Network Telemetry logs ({len(df):,} rows) -> '{output_path}'"
+        f"successfully processed network telemetry logs ({len(df):,} rows) -> '{output_path}'"
     )
 
 
@@ -65,10 +71,12 @@ def preprocess_network(df):
 def main(file_path):
     raw_df = pd.read_csv(file_path)
 
-    # Standardize column structure first
-    df = normalize_csv(raw_df)
+    # standardize column structure first
+    df, warnings = normalize_csv(raw_df)
+    for field in warnings:
+        print(f"warning: '{field}' not found in source data - filled with a constant placeholder.")
 
-    # Proceed with feature extraction on standardized column names
+    # proceed with feature extraction on standardized column names
     if "protocol" in df.columns:
         print("Processing normalized network telemetry...")
         preprocess_network(df)

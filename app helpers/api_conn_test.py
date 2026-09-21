@@ -9,6 +9,6 @@ try:
     res = client.models.generate_content(
         model="gemini-3.6-flash", contents="Hello"
     )
-    print("✅ Connection successful:", res.text)
+    print("connection successful:", res.text)
 except Exception as e:
-    print("❌ API Key failed:", e)
+    print("api key failed:", e)
