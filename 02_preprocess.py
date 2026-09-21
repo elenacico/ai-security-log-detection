@@ -3,6 +3,13 @@ import numpy as np
 import pandas as pd
 from csv_normalizer import normalize_csv
 
+# this script is the active training-data pipeline for the network engine
+# (feeds 03_train_model.py -> isolation_forest_network.pkl, still the
+# dashboard's primary network detector). for ssh, its output only feeds the
+# old isolation_forest_ssh.pkl fallback path - the dashboard's primary ssh
+# detector (the brute-force classifier) builds its own features straight
+# from raw logs via brute_force_features.py and doesn't go through here.
+
 
 def preprocess_ssh(df):
     """processes host-level ssh authentication logs using rolling time windows."""
@@ -77,7 +84,7 @@ def main(file_path):
         print(f"warning: '{field}' not found in source data - filled with a constant placeholder.")
 
     # proceed with feature extraction on standardized column names
-    if "protocol" in df.columns:
+    if "Protocol" in df.columns:
         print("Processing normalized network telemetry...")
         preprocess_network(df)
     elif "timestamp" in df.columns and "source_ip" in df.columns:
