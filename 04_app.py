@@ -8,7 +8,7 @@ from sklearn.ensemble import IsolationForest
 from streamlit_autorefresh import st_autorefresh
 from ai_explainer import generate_incident_report
 from csv_normalizer import normalize_csv#
-from scipy.stats import percentileofscore
+from scipy.stats import rankdata
 from brute_force_features import FEATURE_COLS, build_actor_features
 
 
@@ -144,14 +144,17 @@ if df_raw is not None and not df_raw.empty:
                     f"on this dataset's own features: **{', '.join(expected_features)}**"
                 )
 
-            # calculate risk score as a percentile rank of anomaly severity
+            # calculate risk score as a percentile rank of anomaly severity.
+            # rankdata is vectorized (O(n log n)); calling percentileofscore
+            # once per row is O(n^2) and becomes unusably slow past a few
+            # tens of thousands of rows
             raw_scores = model.decision_function(X)
 
             # invert scores so lower raw values = higher risk percentile
             anomaly_severity = -raw_scores
-            df["risk_score"] = np.round([
-                percentileofscore(anomaly_severity, score) for score in anomaly_severity
-            ], 1)
+            df["risk_score"] = np.round(
+                rankdata(anomaly_severity, method="average") / len(anomaly_severity) * 100, 1
+            )
 
             col1, col2 = st.columns(2)
             col1.metric("Total Streamed Sessions", f"{len(df):,}")
@@ -167,11 +170,15 @@ if df_raw is not None and not df_raw.empty:
             )
             st.plotly_chart(fig, use_container_width=True)
 
-            # ai threat analysis trigger
+            # ai threat analysis trigger. risk_score is a percentile rank, so
+            # roughly the top 20% of any batch always clears the 80
+            # threshold - on a large dataset that can be tens of thousands
+            # of rows, which would make the selector below unusably slow to
+            # render, so it's capped to the most severe handful
             st.subheader("Gemini AI Threat Remediation")
-            high_risk = df[df["risk_score"] >= 80]
+            high_risk = df[df["risk_score"] >= 80].sort_values("risk_score", ascending=False).head(50)
             if not high_risk.empty:
-                selected_idx = st.selectbox("Select Flagged Event Index", high_risk.index[::-1])
+                selected_idx = st.selectbox("Select Flagged Event Index", high_risk.index)
                 event_data = high_risk.loc[selected_idx]
 
                 if st.button("Generate AI Mitigation Brief"):
@@ -305,6 +312,6 @@ if df_raw is not None and not df_raw.empty:
 
 else:
     if live_mode:
-        st.warning("Live stream initialized. Waiting for incoming events from `06_log_simulator.py`...")
+        st.warning("Live stream initialized. Waiting for incoming events from `05_log_simulator.py`...")
     else:
         st.info("Please upload a CSV file or check 'Enable Live Streaming Mode' in the sidebar.")
