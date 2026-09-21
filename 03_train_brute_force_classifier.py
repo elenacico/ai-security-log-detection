@@ -70,5 +70,5 @@ def main(file_path):
 
 
 if __name__ == "__main__":
-    target_file = sys.argv[1] if len(sys.argv) > 1 else "data/ssh_logs.csv"
+    target_file = sys.argv[1] if len(sys.argv) > 1 else "data/ssh_anomaly_dataset.csv"
     main(target_file)

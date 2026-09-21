@@ -12,10 +12,9 @@ authors:
 
 ### Training
 
-- **SSH authentication training data** (`data/ssh_logs.csv`)
+- **SSH authentication training data** (`data/ssh_anomaly_dataset.csv`)
   [SSH Anomaly Dataset](https://www.kaggle.com/datasets/mdwiraputradananjaya/ssh-anomaly-dataset)
   by [Md Wira Putra Dananjaya](https://www.kaggle.com/mdwiraputradananjaya)
-  (renamed from `ssh_anomaly_dataset.csv`)
 
 - **Network telemetry training data** (`data/cybersecurity_network_logs.csv`)
   [Cybersecurity Network Logs - Anomaly Detection](https://www.kaggle.com/datasets/aatmaca/cybersecurity-network-logs-anomaly-detection)
