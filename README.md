@@ -7,8 +7,10 @@ with Gemini-generated incident reports.
 
 ## Data Sources
 
-This project uses publicly available datasets from Kaggle. Credit to the original
-authors:
+This project uses publicly available datasets from Kaggle. The datasets
+themselves are **not included in this repository** - check each source's license
+before use, then download and place them yourself following
+[data/README.md](data/README.md). Credit to the original authors:
 
 ### Training
 
@@ -52,6 +54,10 @@ synthetic SSH log generator.
 pip install -r requirements.txt
 streamlit run 04_app.py
 ```
+
+The dashboard works out of the box with the pretrained models already committed
+in this repo - you only need to download the datasets (see Data Sources above)
+if you want to re-run the training pipeline yourself.
 
 To enable AI-generated incident reports, copy `.streamlit/secrets.toml.example` to
 `.streamlit/secrets.toml` and add your own Gemini API key (or set `GEMINI_API_KEY`
